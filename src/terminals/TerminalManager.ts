@@ -131,7 +131,11 @@ export class TerminalManager {
       this._terminals,
       this._shellIntegrationService,
       this._stateUpdateEmitter,
-      (terminalId: string, data: string) => this._dataBufferManager.bufferData(terminalId, data)
+      (terminalId: string, data: string) => {
+        // PTY出力を監視してWin32 Input Modeなどの状態を更新
+        this._ioCoordinator.notifyPtyOutput(terminalId, data);
+        this._dataBufferManager.bufferData(terminalId, data);
+      }
     );
 
     this._lifecycleManager = new TerminalLifecycleManager(
@@ -511,6 +515,7 @@ export class TerminalManager {
       this._processCoordinator.cleanupInitialPromptGuard(terminalId);
       this._processCoordinator.cleanupPtyOutput(terminalId);
       this._dataBufferManager.cleanupBuffer(terminalId);
+      this._ioCoordinator.cleanupTerminal(terminalId);
       this._cliAgentService.handleTerminalRemoved(terminalId);
       this._terminals.delete(terminalId);
       this._terminalRemovedEmitter.fire(terminalId);

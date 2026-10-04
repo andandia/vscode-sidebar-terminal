@@ -11,6 +11,9 @@ export class TerminalIOCoordinator {
   private static readonly MAX_PTY_RETRY_ATTEMPTS = 3;
   private static readonly PTY_RETRY_DELAY_MS = 300;
 
+  // Win32 Input Mode (CSI ? 9001 h) が有効になっているターミナルIDのセット
+  private readonly _win32InputModeTerminals = new Set<string>();
+
   constructor(
     private readonly _terminals: Map<string, TerminalInstance>,
     private readonly _activeTerminalManager: ActiveTerminalManager,
@@ -21,6 +24,71 @@ export class TerminalIOCoordinator {
     if (this._debugLoggingEnabled) {
       log(...args);
     }
+  }
+
+  /**
+   * PTYからの出力データを受信し、Win32 Input Modeなどのエスケープシーケンスを監視・更新します
+   * @param terminalId ターミナルID
+   * @param data PTYからの出力データ
+   */
+  public notifyPtyOutput(terminalId: string, data: string): void {
+    if (!data) {
+      return;
+    }
+
+    // Win32 Input Mode 有効化シーケンス (CSI ? 9001 h) の検知
+    if (data.includes('\x1b[?9001h')) {
+      this._win32InputModeTerminals.add(terminalId);
+      this.debugLog(`[PTY-INPUT-MODE] Win32 Input Mode enabled for ${terminalId}`);
+    }
+
+    // Win32 Input Mode 無効化シーケンス (CSI ? 9001 l) の検知
+    if (data.includes('\x1b[?9001l')) {
+      this._win32InputModeTerminals.delete(terminalId);
+      this.debugLog(`[PTY-INPUT-MODE] Win32 Input Mode disabled for ${terminalId}`);
+    }
+  }
+
+  /**
+   * ターミナル削除時・終了時のクリーンアップ処理
+   * @param terminalId ターミナルID
+   */
+  public cleanupTerminal(terminalId: string): void {
+    this._win32InputModeTerminals.delete(terminalId);
+  }
+
+  /**
+   * PTYへ送信する入力データを環境やモードに応じて適切にフォーマットします
+   * Windows ConPTY かつ Win32 Input Mode 有効時、ConPTYがAltキー(Vk=18)に誤変換してしまう
+   * 「・」(U+30FB)などの非ASCII文字を明示的なWin32 Inputシーケンスに変換します。
+   * @param terminalId ターミナルID
+   * @param data 入力データ文字列
+   */
+  public formatInputForPty(terminalId: string, data: string): string {
+    // Windows 以外、または Win32 Input Mode が無効な場合は変換しない
+    if (process.platform !== 'win32' || !this._win32InputModeTerminals.has(terminalId)) {
+      return data;
+    }
+
+    // 既にエスケープシーケンスが含まれている入力（矢印キーや特殊コマンド等）はそのまま渡す
+    if (data.includes('\x1b')) {
+      return data;
+    }
+
+    let formatted = '';
+    for (let i = 0; i < data.length; i++) {
+      const code = data.charCodeAt(i);
+      // 非ASCII文字（全角文字・カタカナ中点など）を明示的なWin32 Inputシーケンスに変換
+      // KeyDown: Vk=0, Sc=0, Uc=code, Kd=1, Cs=0, Rc=1
+      // KeyUp:   Vk=0, Sc=0, Uc=code, Kd=0, Cs=0, Rc=1
+      if (code >= 128) {
+        formatted += `\x1b[0;0;${code};1;0;1_\x1b[0;0;${code};0;0;1_`;
+      } else {
+        formatted += data[i];
+      }
+    }
+
+    return formatted;
   }
 
   public sendInput(data: string, terminalId?: string): void {
@@ -36,8 +104,10 @@ export class TerminalIOCoordinator {
 
     try {
       this._cliAgentService.handleInputChunk(resolvedTerminalId, data);
-      const result = this.writeToPtyWithValidation(terminal, data);
-      if (!result.success && !this.attemptPtyRecovery(terminal, data)) {
+      // PTY向けに入力データをフォーマット
+      const formattedData = this.formatInputForPty(resolvedTerminalId, data);
+      const result = this.writeToPtyWithValidation(terminal, formattedData);
+      if (!result.success && !this.attemptPtyRecovery(terminal, formattedData)) {
         throw new Error(result.error || 'PTY write failed');
       }
     } catch (error) {
