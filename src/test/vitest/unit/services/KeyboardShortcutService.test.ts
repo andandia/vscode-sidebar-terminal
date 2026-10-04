@@ -29,10 +29,18 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
+  const mockEnv = {
+    clipboard: {
+      readText: vi.fn(),
+      writeText: vi.fn(),
+    },
+  };
+
   return {
     mockCommands,
     mockWindow,
     mockWorkspace,
+    mockEnv,
   };
 });
 
@@ -40,6 +48,7 @@ vi.mock('vscode', () => ({
   commands: mocks.mockCommands,
   window: mocks.mockWindow,
   workspace: mocks.mockWorkspace,
+  env: mocks.mockEnv,
 }));
 
 vi.mock('../../../../utils/logger', () => ({
@@ -69,11 +78,16 @@ describe('KeyboardShortcutService', () => {
       }
     );
 
+    mocks.mockEnv.clipboard.readText.mockClear();
+    mocks.mockEnv.clipboard.writeText.mockClear();
+
     terminalManager = {
       getDefaultProfile: vi.fn().mockReturnValue(null),
       createTerminal: vi.fn().mockReturnValue('terminal-1'),
       createTerminalWithProfile: vi.fn().mockResolvedValue('terminal-2'),
       setActiveTerminal: vi.fn(),
+      getActiveTerminalId: vi.fn().mockReturnValue('terminal-1'),
+      sendInput: vi.fn(),
     };
 
     webviewProvider = {
@@ -233,6 +247,55 @@ describe('KeyboardShortcutService', () => {
         'secondaryTerminal.panelNavigation.enabled',
         false
       );
+    });
+  });
+
+  describe('secondaryTerminal.paste', () => {
+    it('CRLF改行を含むテキストが正規化されブラケッティドペーストモードでsendInputに渡されること', async () => {
+      mocks.mockEnv.clipboard.readText.mockResolvedValue('line1\r\nline2\r\nline3');
+      const pasteHandler = commandHandlers.get('secondaryTerminal.paste');
+      expect(pasteHandler).toBeDefined();
+
+      await pasteHandler?.();
+
+      expect(terminalManager.sendInput).toHaveBeenCalledWith(
+        '\x1b[200~line1\rline2\rline3\x1b[201~',
+        'terminal-1'
+      );
+    });
+
+    it('LF改行を含むテキストが正規化されブラケッティドペーストモードでsendInputに渡されること', async () => {
+      mocks.mockEnv.clipboard.readText.mockResolvedValue('line1\nline2');
+      const pasteHandler = commandHandlers.get('secondaryTerminal.paste');
+      expect(pasteHandler).toBeDefined();
+
+      await pasteHandler?.();
+
+      expect(terminalManager.sendInput).toHaveBeenCalledWith(
+        '\x1b[200~line1\rline2\x1b[201~',
+        'terminal-1'
+      );
+    });
+
+    it('クリップボードが空の場合はsendInputが呼び出されないこと', async () => {
+      mocks.mockEnv.clipboard.readText.mockResolvedValue('');
+      const pasteHandler = commandHandlers.get('secondaryTerminal.paste');
+      expect(pasteHandler).toBeDefined();
+
+      await pasteHandler?.();
+
+      expect(terminalManager.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('アクティブなターミナルが存在しない場合はsendInputが呼び出されないこと', async () => {
+      terminalManager.getActiveTerminalId.mockReturnValue(null);
+      mocks.mockEnv.clipboard.readText.mockResolvedValue('text');
+      const pasteHandler = commandHandlers.get('secondaryTerminal.paste');
+      expect(pasteHandler).toBeDefined();
+
+      await pasteHandler?.();
+
+      expect(terminalManager.sendInput).not.toHaveBeenCalled();
     });
   });
 });

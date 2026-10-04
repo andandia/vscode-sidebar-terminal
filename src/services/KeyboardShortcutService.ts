@@ -8,6 +8,7 @@ import { TerminalManager } from '../terminals/TerminalManager';
 import { SecondaryTerminalProvider } from '../providers/SecondaryTerminalProvider';
 import { terminal as log } from '../utils/logger';
 import { DisposableStore } from '../utils/DisposableStore';
+import { formatTerminalPasteText } from '../utils/terminalPaste';
 
 export class KeyboardShortcutService {
   private readonly _disposables = new DisposableStore();
@@ -352,13 +353,16 @@ export class KeyboardShortcutService {
    */
   private async paste(): Promise<void> {
     const activeTerminal = this._terminalManager.getActiveTerminalId();
-    if (!activeTerminal) return;
+    if (!activeTerminal) {
+      return;
+    }
 
     try {
       const clipboardText = await vscode.env.clipboard.readText();
       if (clipboardText && activeTerminal) {
-        // Fix: sendInput signature is (data, terminalId), not (terminalId, data)
-        this._terminalManager.sendInput(clipboardText, activeTerminal);
+        // 改行コード正規化とブラケッティドペーストモードの適用
+        const processedText = formatTerminalPasteText(clipboardText);
+        this._terminalManager.sendInput(processedText, activeTerminal);
         log(`📋 [KEYBOARD] Pasted ${clipboardText.length} chars to terminal ${activeTerminal}`);
       }
     } catch (error) {

@@ -22,6 +22,7 @@ import { WebViewCommunicationService } from './WebViewCommunicationService';
 import { TerminalLinkResolver } from './TerminalLinkResolver';
 import { getUnifiedConfigurationService } from '../../config/UnifiedConfigurationService';
 import { ITerminalProfile } from '../../types/profiles';
+import { formatTerminalPasteText } from '../../utils/terminalPaste';
 
 /**
  * Dependencies required by TerminalCommandHandlers
@@ -448,11 +449,8 @@ export class TerminalCommandHandlers {
 
       log(`📋 [HANDLER] Clipboard content length: ${clipboardText.length} characters`);
 
-      // Normalize line endings to carriage return (VS Code standard terminal behavior)
-      let processedText = clipboardText.replace(/\r?\n/g, '\r');
-
-      // Wrap with bracketed paste mode escape sequences (VS Code standard terminal behavior)
-      processedText = `\x1b[200~${processedText}\x1b[201~`;
+      // 改行コード正規化とブラケッティドペーストモードの適用 (VS Code standard terminal behavior)
+      const processedText = formatTerminalPasteText(clipboardText);
 
       // Send to terminal using sendInput
       // Note: VS Code standard terminal does NOT escape special characters on paste.
@@ -654,15 +652,8 @@ export class TerminalCommandHandlers {
       log(`📋 [HANDLER] Processing text paste for terminal ${message.terminalId}`);
       log(`📋 [HANDLER] Text length: ${text.length} characters`);
 
-      // Normalize line endings to carriage return (VS Code standard terminal behavior)
-      // This ensures consistent behavior across platforms
-      let processedText = text.replace(/\r?\n/g, '\r');
-
-      // Wrap with bracketed paste mode escape sequences (VS Code standard terminal behavior)
-      // This tells the shell that this is pasted content, preventing each line from being
-      // executed as a separate command. Most modern shells support this mode.
-      // \x1b[200~ = start bracketed paste, \x1b[201~ = end bracketed paste
-      processedText = `\x1b[200~${processedText}\x1b[201~`;
+      // 改行コード正規化とブラケッティドペーストモードの適用 (VS Code standard terminal behavior)
+      const processedText = formatTerminalPasteText(text);
 
       // Send to terminal using sendInput
       // Note: VS Code standard terminal does NOT escape special characters on paste.
