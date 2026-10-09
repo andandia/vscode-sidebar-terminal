@@ -14,6 +14,7 @@ import { CopilotIntegrationCommand } from '../commands/CopilotIntegrationCommand
 import { EnhancedShellIntegrationService } from '../services/EnhancedShellIntegrationService';
 import { KeyboardShortcutService } from '../services/KeyboardShortcutService';
 import { TelemetryService } from '../services/TelemetryService';
+import { AutoEnterService } from '../services/AutoEnterService';
 import { VersionUtils } from '../utils/VersionUtils';
 import { logger } from '../utils/logger';
 
@@ -40,6 +41,7 @@ export interface CommandRegistrarDeps {
   shellIntegrationService: EnhancedShellIntegrationService | undefined;
   keyboardShortcutService: KeyboardShortcutService | undefined;
   telemetryService: TelemetryService | undefined;
+  autoEnterService?: AutoEnterService;
 }
 
 /**
@@ -261,6 +263,24 @@ export class CommandRegistrar {
           } catch (error) {
             logger.error('Failed to execute killTerminal command', error);
           }
+        },
+      },
+      {
+        command: 'secondaryTerminal.toggleAutoEnter',
+        handler: () => {
+          this.deps.autoEnterService?.toggleAutoEnter();
+        },
+      },
+      {
+        command: 'secondaryTerminal.enableAutoEnter',
+        handler: () => {
+          this.deps.autoEnterService?.toggleAutoEnter();
+        },
+      },
+      {
+        command: 'secondaryTerminal.disableAutoEnter',
+        handler: () => {
+          this.deps.autoEnterService?.toggleAutoEnter();
         },
       },
     ];

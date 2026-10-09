@@ -165,6 +165,23 @@
         "icon": "$(add)"
       },
       {
+        "command": "secondaryTerminal.toggleAutoEnter",
+        "title": "Toggle Auto Enter",
+        "category": "Secondary Terminal"
+      },
+      {
+        "command": "secondaryTerminal.enableAutoEnter",
+        "title": "Enable Auto Enter",
+        "category": "Secondary Terminal",
+        "icon": "$(play)"
+      },
+      {
+        "command": "secondaryTerminal.disableAutoEnter",
+        "title": "Disable Auto Enter",
+        "category": "Secondary Terminal",
+        "icon": "$(debug-pause)"
+      },
+      {
         "command": "secondaryTerminal.focusFind",
         "title": "Find in Terminal",
         "category": "Secondary Terminal"
@@ -279,6 +296,16 @@
           "group": "navigation@0"
         },
         {
+          "command": "secondaryTerminal.enableAutoEnter",
+          "when": "view == secondaryTerminal && !secondaryTerminal.autoEnterActive",
+          "group": "navigation@0.1"
+        },
+        {
+          "command": "secondaryTerminal.disableAutoEnter",
+          "when": "view == secondaryTerminal && secondaryTerminal.autoEnterActive",
+          "group": "navigation@0.1"
+        },
+        {
           "command": "secondaryTerminal.splitTerminal",
           "when": "view == secondaryTerminal",
           "group": "navigation@1"
@@ -303,6 +330,12 @@
     "configuration": {
       "title": "Secondary Terminal",
       "properties": {
+        "secondaryTerminal.autoEnterInterval": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "description": "Interval in milliseconds to periodically send Enter (\\r) to enabled terminals (default: 1000ms)."
+        },
         "secondaryTerminal.shell": {
           "type": "string",
           "default": "",
@@ -1178,16 +1211,16 @@
     "test:vrt:p1": "playwright test --grep '@visual-regression.*@P1'",
     "test:vrt:report": "playwright show-report",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "vsce:package": "@vscode/vsce package",
-    "vsce:publish": "@vscode/vsce publish",
+    "vsce:package": "vsce package",
+    "vsce:publish": "vsce publish",
     "ovsx:publish": "ovsx publish",
     "ovsx:publish:vsix": "ovsx publish *.vsix",
-    "vsce:package:win32-x64": "@vscode/vsce package --target win32-x64",
-    "vsce:package:win32-arm64": "@vscode/vsce package --target win32-arm64",
-    "vsce:package:linux-x64": "@vscode/vsce package --target linux-x64",
-    "vsce:package:linux-arm64": "@vscode/vsce package --target linux-arm64",
-    "vsce:package:darwin-x64": "@vscode/vsce package --target darwin-x64",
-    "vsce:package:darwin-arm64": "@vscode/vsce package --target darwin-arm64",
+    "vsce:package:win32-x64": "vsce package --target win32-x64",
+    "vsce:package:win32-arm64": "vsce package --target win32-arm64",
+    "vsce:package:linux-x64": "vsce package --target linux-x64",
+    "vsce:package:linux-arm64": "vsce package --target linux-arm64",
+    "vsce:package:darwin-x64": "vsce package --target darwin-x64",
+    "vsce:package:darwin-arm64": "vsce package --target darwin-arm64",
     "create-icons": "node scripts/create-icon.js",
     "pre-release:check": "npm run tdd:comprehensive-check && node scripts/pre-release-hook.js",
     "release:patch": "npx standard-version --release-as patch",

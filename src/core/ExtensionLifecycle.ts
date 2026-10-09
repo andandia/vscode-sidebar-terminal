@@ -13,11 +13,13 @@ import { TelemetryService } from '../services/TelemetryService';
 import { CommandRegistrar } from './CommandRegistrar';
 import { SessionLifecycleManager } from './SessionLifecycleManager';
 import { FocusProtectionService } from '../services/FocusProtectionService';
+import { AutoEnterService } from '../services/AutoEnterService';
 
 /** Manages extension activation, service initialization, and cleanup. */
 export class ExtensionLifecycle {
   private terminalManager: TerminalManager | undefined;
   private sidebarProvider: SecondaryTerminalProvider | undefined;
+  private autoEnterService: AutoEnterService | undefined;
   private extensionPersistenceService: ExtensionPersistenceService | undefined;
   private fileReferenceCommand: FileReferenceCommand | undefined;
   private terminalCommand: TerminalCommand | undefined;
@@ -184,6 +186,16 @@ export class ExtensionLifecycle {
         getExtensionContext: () => this._extensionContext,
       });
 
+      // Initialize AutoEnterService
+      if (this.terminalManager) {
+        this.autoEnterService = new AutoEnterService(this.terminalManager);
+        context.subscriptions.push({
+          dispose: () => {
+            this.autoEnterService?.dispose();
+          },
+        });
+      }
+
       // Initialize CommandRegistrar and register all commands
       this.commandRegistrar = new CommandRegistrar(
         {
@@ -196,6 +208,7 @@ export class ExtensionLifecycle {
           shellIntegrationService: this.shellIntegrationService,
           keyboardShortcutService: this.keyboardShortcutService,
           telemetryService: this.telemetryService,
+          autoEnterService: this.autoEnterService,
         },
         {
           handleSaveSession: () => this.sessionLifecycleManager!.handleSaveSession(),
@@ -344,6 +357,13 @@ export class ExtensionLifecycle {
       log('🔧 [EXTENSION] Disposing terminal links service...');
       this.linksService.dispose();
       this.linksService = undefined;
+    }
+
+    // Dispose auto enter service
+    if (this.autoEnterService) {
+      log('🔧 [EXTENSION] Disposing auto enter service...');
+      this.autoEnterService.dispose();
+      this.autoEnterService = undefined;
     }
 
     // Dispose terminal manager

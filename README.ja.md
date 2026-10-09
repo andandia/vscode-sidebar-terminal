@@ -60,3 +60,9 @@ VS Codeのテレメトリ設定を尊重。ターミナルの内容やファイ�
 ## ライセンス
 
 MIT -- [LICENSE](LICENSE) を参照。
+
+# ビルド
+
+```
+npm run vsce:package:win32-x64
+```
