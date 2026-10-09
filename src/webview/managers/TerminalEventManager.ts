@@ -75,6 +75,9 @@ export class TerminalEventManager extends BaseManager {
     // Setup click handler for terminal activation
     this.setupTerminalClickHandler(terminal, terminalId, container);
 
+    // Setup context menu handler for right-click paste
+    this.setupTerminalContextMenuHandler(terminal, terminalId, container);
+
     // Setup focus optimization
     this.setupFocusOptimization(terminal, terminalId);
 
@@ -157,7 +160,7 @@ export class TerminalEventManager extends BaseManager {
         return;
       }
 
-      // VS Code standard: Click activates terminal only if no text is selected
+      // VS Code standard / custom: テキスト未選択時はアクティブ化、テキスト選択時はクリップボードにコピーして選択解除
       const clickHandler = (_event: Event) => {
         try {
           if (!terminal.hasSelection()) {
@@ -166,9 +169,18 @@ export class TerminalEventManager extends BaseManager {
             );
             this.coordinator?.setActiveTerminalId(terminalId);
           } else {
-            terminalLogger.debug(
-              `🎯 Click ignored due to text selection in terminal: ${terminalId}`
-            );
+            const selection = terminal.getSelection();
+            if (selection) {
+              terminalLogger.info(
+                `📋 Copying selection on click from terminal ${terminalId} (${selection.length} chars)`
+              );
+              this.coordinator?.postMessageToExtension({
+                command: 'copyToClipboard',
+                terminalId,
+                text: selection,
+              });
+              terminal.clearSelection();
+            }
           }
         } catch (error) {
           terminalLogger.warn(`Failed to handle terminal click for ${terminalId}:`, error);
@@ -186,6 +198,58 @@ export class TerminalEventManager extends BaseManager {
       terminalLogger.info(`✅ VS Code standard click handling enabled for terminal: ${terminalId}`);
     } catch (error) {
       terminalLogger.error(`Failed to setup click handler for ${terminalId}:`, error);
+    }
+  }
+
+  /**
+   * 右クリック時のコンテキストメニュー抑制および貼り付け処理のセットアップ
+   */
+  private setupTerminalContextMenuHandler(
+    _terminal: Terminal,
+    terminalId: string,
+    container: HTMLElement
+  ): void {
+    try {
+      const xtermElement = container.querySelector('.xterm');
+      if (!xtermElement) {
+        terminalLogger.warn(`xterm element not found for context menu handler: ${terminalId}`);
+        return;
+      }
+
+      // 右クリック（contextmenu）イベントハンドラー
+      const contextMenuHandler = (event: Event) => {
+        try {
+          // ブラウザ標準のコンテキストメニュー表示を抑制
+          event.preventDefault();
+
+          terminalLogger.info(
+            `📋 Right-click detected: requesting clipboard paste for ${terminalId}`
+          );
+
+          // ターミナルをアクティブ化
+          this.coordinator?.setActiveTerminalId(terminalId);
+
+          // クリップボードからの貼り付けを拡張機能に要求
+          this.coordinator?.postMessageToExtension({
+            command: 'requestClipboardContent',
+            terminalId,
+          });
+        } catch (error) {
+          terminalLogger.warn(`Failed to handle context menu for ${terminalId}:`, error);
+        }
+      };
+
+      xtermElement.addEventListener('contextmenu', contextMenuHandler);
+      this.eventRegistry.register(
+        `terminal-${terminalId}-contextmenu`,
+        xtermElement as HTMLElement,
+        'contextmenu',
+        contextMenuHandler
+      );
+
+      terminalLogger.info(`✅ Right-click paste handling enabled for terminal: ${terminalId}`);
+    } catch (error) {
+      terminalLogger.error(`Failed to setup context menu handler for ${terminalId}:`, error);
     }
   }
 

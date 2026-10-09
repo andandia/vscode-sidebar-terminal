@@ -59,6 +59,8 @@ describe('TerminalEventManager', () => {
       onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
       textarea: document.createElement('textarea'),
       hasSelection: vi.fn().mockReturnValue(false),
+      getSelection: vi.fn().mockReturnValue(''),
+      clearSelection: vi.fn(),
       focus: vi.fn(),
     };
 
@@ -159,6 +161,64 @@ describe('TerminalEventManager', () => {
       clickHandler(new Event('click'));
 
       expect(mockCoordinator.setActiveTerminalId).not.toHaveBeenCalled();
+    });
+
+    it('選択状態がある場合、クリック時にテキストをクリップボードにコピーして選択を解除すること', () => {
+      mockTerminal.hasSelection.mockReturnValue(true);
+      mockTerminal.getSelection.mockReturnValue('selected text to copy');
+
+      manager.setupTerminalEvents(mockTerminal as Terminal, 't1', mockContainer);
+
+      const calls = (mockRegistry.register as any).mock.calls;
+      const clickCall = calls.find((call: any) => call[0] === 'terminal-t1-click');
+      const clickHandler = clickCall[3];
+
+      clickHandler(new Event('click'));
+
+      // クリップボードへコピー要求を送信
+      expect(mockCoordinator.postMessageToExtension).toHaveBeenCalledWith({
+        command: 'copyToClipboard',
+        terminalId: 't1',
+        text: 'selected text to copy',
+      });
+      // 選択状態を解除
+      expect(mockTerminal.clearSelection).toHaveBeenCalled();
+    });
+  });
+
+  describe('Context Menu & Right-Click Handling', () => {
+    it('右クリック用のcontextmenuイベントハンドラーが登録されること', () => {
+      manager.setupTerminalEvents(mockTerminal as Terminal, 't1', mockContainer);
+
+      expect(mockRegistry.register).toHaveBeenCalledWith(
+        'terminal-t1-contextmenu',
+        expect.anything(),
+        'contextmenu',
+        expect.any(Function)
+      );
+    });
+
+    it('右クリック時にコンテキストメニューを抑制しクリップボードの内容を貼り付けること', () => {
+      manager.setupTerminalEvents(mockTerminal as Terminal, 't1', mockContainer);
+
+      const calls = (mockRegistry.register as any).mock.calls;
+      const contextMenuCall = calls.find((call: any) => call[0] === 'terminal-t1-contextmenu');
+      const contextMenuHandler = contextMenuCall[3];
+
+      const event = new Event('contextmenu', { cancelable: true });
+      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+
+      contextMenuHandler(event);
+
+      // ブラウザ標準のコンテキストメニュー表示を抑制
+      expect(preventDefaultSpy).toHaveBeenCalled();
+      // クリップボード内容の貼り付けを要求
+      expect(mockCoordinator.postMessageToExtension).toHaveBeenCalledWith({
+        command: 'requestClipboardContent',
+        terminalId: 't1',
+      });
+      // ターミナルをアクティブ化
+      expect(mockCoordinator.setActiveTerminalId).toHaveBeenCalledWith('t1');
     });
   });
 
