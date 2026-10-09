@@ -302,7 +302,9 @@ export class KeybindingService {
       // Additional shortcuts
       [`${isMac ? 'meta' : 'ctrl'}+shift+c`]: 'workbench.action.terminal.openNativeConsole',
       f1: 'workbench.action.showCommands',
-      escape: 'workbench.action.terminal.hideFind',
+      // Note: escape は常時 hideFind にバインドしてはならない（VS Code本体でも terminalFindWidgetVisible 時のみ）。
+      // 検索表示時のEscハンドリングは FindInTerminalManager が担っており、
+      // ここで常時マップすると commandsToSkipShell 経由でEscキーがシェルへ届かなくなる。
 
       // Platform specific
       ...(isMac

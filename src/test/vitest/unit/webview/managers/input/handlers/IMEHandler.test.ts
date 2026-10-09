@@ -162,4 +162,21 @@ describe('IMEHandler Cursor Visibility', () => {
     expect(handler.isIMEComposing()).toBe(false);
     expect((global as any).document.body.classList.contains('terminal-ime-composing')).toBe(false);
   });
+
+  it('resets composition state immediately when Escape keydown is detected', () => {
+    const startEvent = new (global as any).CompositionEvent('compositionstart', {
+      data: 'にほんご',
+    });
+    (global as any).document.dispatchEvent(startEvent);
+    expect(handler.isIMEComposing()).toBe(true);
+    expect((global as any).document.body.classList.contains('terminal-ime-composing')).toBe(true);
+
+    // Escape pressed (e.g. user cancels IME conversion or candidate window)
+    const escEvent = new (global as any).Event('keydown', { bubbles: true });
+    (escEvent as any).key = 'Escape';
+    (global as any).document.dispatchEvent(escEvent);
+
+    expect(handler.isIMEComposing()).toBe(false);
+    expect((global as any).document.body.classList.contains('terminal-ime-composing')).toBe(false);
+  });
 });

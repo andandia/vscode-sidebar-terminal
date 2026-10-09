@@ -191,6 +191,12 @@ describe('KeybindingService', () => {
       expect(service.resolveKeybinding(new KeyboardEvent('keydown', { key: 'Home' }))).toBeNull();
       expect(service.resolveKeybinding(new KeyboardEvent('keydown', { key: 'End' }))).toBeNull();
     });
+
+    it('should not map standalone Escape to workbench.action.terminal.hideFind', () => {
+      // Escape in terminal should pass to shell unless find widget is open
+      const escEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+      expect(service.resolveKeybinding(escEvent)).toBeNull();
+    });
   });
 
   describe('State Management', () => {

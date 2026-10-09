@@ -151,12 +151,44 @@ describe('InputFlushingService', () => {
       expect(service.shouldFlushImmediately('hello\r', makeKeyboardEvent('a'))).toBe(true);
     });
 
+    it('should return true for Escape key', () => {
+      expect(service.shouldFlushImmediately('\x1b', makeKeyboardEvent('Escape'))).toBe(true);
+    });
+
+    it('should return true for data starting with escape character (\\x1b)', () => {
+      expect(service.shouldFlushImmediately('\x1b', makeKeyboardEvent('a'))).toBe(true);
+      expect(service.shouldFlushImmediately('\x1b[A', makeKeyboardEvent('ArrowUp'))).toBe(true);
+    });
+
+    it('should return true for single ASCII control characters (< 32)', () => {
+      expect(service.shouldFlushImmediately('\x03', makeKeyboardEvent('c'))).toBe(true); // Ctrl+C
+      expect(service.shouldFlushImmediately('\x04', makeKeyboardEvent('d'))).toBe(true); // Ctrl+D
+    });
+
     it('should return false for regular character input', () => {
       expect(service.shouldFlushImmediately('a', makeKeyboardEvent('a'))).toBe(false);
     });
 
     it('should return false for multi-char non-newline data', () => {
       expect(service.shouldFlushImmediately('abc', makeKeyboardEvent('c'))).toBe(false);
+    });
+
+    it('should flush Escape immediately so subsequent key is not batched with it', () => {
+      // Esc key should be sent immediately
+      const isEscImmediate = service.shouldFlushImmediately('\x1b', makeKeyboardEvent('Escape'));
+      service.queueInputData('terminal-1', '\x1b', isEscImmediate);
+
+      expect(mockSendInput).toHaveBeenCalledTimes(1);
+      expect(mockSendInput).toHaveBeenCalledWith('\x1b', 'terminal-1');
+      mockSendInput.mockClear();
+
+      // Next key (e.g., 'k' in vim) should be queued in a clean buffer, not merged into '\x1bk' (Alt+k)
+      const isNextImmediate = service.shouldFlushImmediately('k', makeKeyboardEvent('k'));
+      service.queueInputData('terminal-1', 'k', isNextImmediate);
+
+      vi.advanceTimersByTime(1);
+      expect(mockSendInput).toHaveBeenCalledTimes(1);
+      expect(mockSendInput).toHaveBeenCalledWith('k', 'terminal-1');
     });
   });
 

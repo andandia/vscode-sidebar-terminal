@@ -88,18 +88,27 @@ export class InputFlushingService {
 
   /**
    * Determine if a key event should trigger immediate flushing.
-   * Returns true for Enter, Backspace, Delete, and data containing newlines.
+   * Returns true for Enter, Backspace, Delete, Escape, control characters, and data containing newlines.
    */
   public shouldFlushImmediately(data: string, domEvent: KeyboardEvent): boolean {
+    // データが空の場合は即時フラッシュ
     if (!data) {
       return true;
     }
 
-    const immediateKeys = new Set(['Enter', 'Backspace', 'Delete']);
+    // Enter, Backspace, Delete, Escape など即時送信が必要なキー
+    // Escapeを遅延させると後続キーと結合されてAlt+キーシーケンス（\x1b+キー）として解釈されるのを防止
+    const immediateKeys = new Set(['Enter', 'Backspace', 'Delete', 'Escape']);
     if (immediateKeys.has(domEvent.key)) {
       return true;
     }
 
+    // エスケープシーケンス（\x1bで始まる）または制御文字（ASCII < 32）は即時送信
+    if (data.startsWith('\x1b') || (data.length === 1 && data.charCodeAt(0) < 32)) {
+      return true;
+    }
+
+    // 改行文字を含むデータは即時送信
     return /[\r\n]/.test(data);
   }
 

@@ -151,6 +151,15 @@ export class IMEHandler extends BaseInputHandler implements IIMEHandler {
       { preventDefault: false, stopPropagation: false }
     );
 
+    // Fail-safe: IME合成中にEscキーでキャンセルされた場合、即座にコンポジション状態をリセット
+    this.eventService.registerEventHandler(
+      'ime-escape-cancel',
+      document,
+      'keydown',
+      this.handleEscapeKeyDown.bind(this),
+      { preventDefault: false, stopPropagation: false }
+    );
+
     this.logger('IME handling', 'completed');
   }
 
@@ -294,6 +303,18 @@ export class IMEHandler extends BaseInputHandler implements IIMEHandler {
     this.forceResetCompositionState('visibility-hidden');
   }
 
+  /**
+   * Escキー押下時のハンドラ
+   * IME合成中にEscが押された場合、即座にコンポジション状態をリセットする
+   */
+  private handleEscapeKeyDown(event: Event): void {
+    const keyEvent = event as KeyboardEvent;
+    if (keyEvent.key === 'Escape' && this.isIMEComposing()) {
+      this.logger('Escape keydown detected during IME composition; forcing composition reset');
+      this.forceResetCompositionState('escape');
+    }
+  }
+
   private scheduleCompositionRecovery(): void {
     this.clearCompositionRecoveryTimer();
 
@@ -315,7 +336,7 @@ export class IMEHandler extends BaseInputHandler implements IIMEHandler {
   }
 
   private forceResetCompositionState(
-    reason: 'timeout' | 'window-blur' | 'visibility-hidden'
+    reason: 'timeout' | 'window-blur' | 'visibility-hidden' | 'escape'
   ): void {
     this.clearCompositionRecoveryTimer();
     this.compositionContext = null;
